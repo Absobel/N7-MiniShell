@@ -1,4 +1,4 @@
-#define _XOPEN_SOURCE 700   // Permet d'avoir la fonction WIFCONTINUED
+#define _XOPEN_SOURCE 700   // Permet d'avoir le macro WIFCONTINUED (pour une raison qui m'échappe)
 #include <stdio.h>    /* entrées sorties */
 #include <unistd.h>   /* pimitives de base : fork, ...*/
 #include <stdlib.h>   /* exit */
