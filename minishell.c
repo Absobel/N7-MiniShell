@@ -10,7 +10,9 @@
 
 #include "readcmd.h"
 
+// Disclaimer : mon code peut paraitre redondans parfois, mais enlever une seule de ses variables ou fonctions et le programme ne fonctionne plus
 
+bool suspend_flag = false;
 
 // ////////////   JOBS
 
@@ -118,20 +120,54 @@ void foreground_job(job jobs[], int id) {
         jobs[id].state = ACTIF;
         int status;
         waitpid(jobs[id].pid, &status, 0);
-        jobs[id].state = TERMINE;
+        jobs[id].state = suspend_flag ? SUSPENDU : TERMINE;
+        suspend_flag = false;
         return;
     }
     fprintf(stderr, "minishell: fg: job not found: %d\n", id);
+}
+
+void suspend_fg_job(job jobs[]) {
+    for (int i = 0; i < NB_JOBS_MAX; i++) {
+        if (jobs[i].state == ACTIF) {
+            kill(jobs[i].pid, SIGSTOP);
+            jobs[i].state = SUSPENDU;
+            return;
+        }
+    }
+}
+void destroy_fg_job(job jobs[]) {
+    for (int i = 0; i < NB_JOBS_MAX; i++) {
+        if (jobs[i].state == ACTIF) {
+            kill(jobs[i].pid, SIGKILL);
+            jobs[i].state = TERMINE;
+            return;
+        }
+    }
 }
 
 
 
 
 
-
-
-
 //////////////   MAIN
+
+job jobs[NB_JOBS_MAX];
+
+void handler_sig(int sig) {
+    switch (sig) {
+        case SIGSTOP:
+        case SIGTSTP:
+            printf("\n");
+            suspend_fg_job(jobs);
+            suspend_flag = true;
+            break;
+        case SIGINT:
+            printf("\n");
+            destroy_fg_job(jobs);
+            break;
+    }
+}
 
 char* cmd_to_str(struct cmdline* cmd) {
     int needed_size = 0;
@@ -148,10 +184,16 @@ char* cmd_to_str(struct cmdline* cmd) {
 }
 
 int main() {
-    struct cmdline *cmd;
-    job jobs[NB_JOBS_MAX];
-    init_jobs(jobs);
+    // Signal handler
+    struct sigaction sa;
+    sa.sa_handler = handler_sig;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGTSTP, &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
 
+    struct cmdline *cmd;
+    init_jobs(jobs);
 
     do {
         printf(">>> ");
@@ -240,7 +282,8 @@ int main() {
                 int status;
                 if (cmd->backgrounded == NULL) {
                     waitpid(pid, &status, 0);
-                    jobs[id_or_error].state = TERMINE;
+                    jobs[id_or_error].state = suspend_flag ? SUSPENDU : TERMINE;
+                    suspend_flag = false;
                 }
                 if (WIFEXITED(status) && WEXITSTATUS(status) == 255) {
                     fprintf(stderr, "minishell: %s: command not found\n", cmd->seq[0][0]);
