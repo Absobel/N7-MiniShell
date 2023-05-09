@@ -217,14 +217,16 @@ int main() {
                 exit(EXIT_SUCCESS);
             } else {
                 fprintf(stderr, "exit: too many arguments\n");
-                continue;
             }
         }
         else if (strcmp(cmd->seq[0][0], "cd") == 0 && cmd->seq[1] == NULL) {
             if (cmd->seq[0][1] == NULL) {
                 chdir(getenv("HOME"));
-            } else if (cmd->seq[0][2] != NULL) {
-                chdir(cmd->seq[0][1]);
+            } else if (cmd->seq[0][1] != NULL && cmd->seq[0][2] == NULL) {
+                int err = chdir(cmd->seq[0][1]);
+                if (err == -1) {
+                    fprintf(stderr, "cd: The directory '%s' does not exist\n", cmd->seq[0][1]);
+                }
             } else {
                 fprintf(stderr, "cd: too many arguments\n");
             }
