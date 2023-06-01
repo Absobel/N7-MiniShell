@@ -14,6 +14,8 @@
 
 #define PROMPT "minishell> "
 #define CMD_SIZE 4096
+#define LECTURE 0
+#define ECRITURE 1
 
 bool suspend_flag = false;
 
@@ -226,6 +228,7 @@ int main() {
             continue;
         }
 
+        // Check avant redirections pour éviter de créer des fichiers inutiles
         char* inexistant_command = malloc(CMD_SIZE);
         checkCommand(cmd->seq, inexistant_command);
         if (strcmp(inexistant_command, "") != 0) {
@@ -320,13 +323,24 @@ int main() {
         }
 
         else {
+            int in = 0;
             for (int i = 0; cmd->seq[i] != NULL; i++) {
+                int pipefd[2];
+                if (pipe(pipefd) == -1) {
+                    perror("pipe");
+                    exit(EXIT_FAILURE);
+                }
                 pid_t pid = fork();
                 if (pid == -1) {
                     perror("fork");
                     exit(EXIT_FAILURE);
                 }
                 if (pid == 0) {
+                    close(pipefd[LECTURE]);
+                    dup2(in, STDIN_FILENO);
+                    if (cmd->seq[i+1] != NULL) {
+                        dup2(pipefd[ECRITURE], STDOUT_FILENO);
+                    }
                     int exit_code = execvp(cmd->seq[i][0], cmd->seq[i]);
                     exit(exit_code);
                 } else {
@@ -343,6 +357,8 @@ int main() {
                     if (WIFEXITED(status) && WEXITSTATUS(status) == 255) {
                         fprintf(stderr, "minishell: %s: command not found\n", cmd->seq[i][0]);
                     }
+                    close(pipefd[ECRITURE]);
+                    in = pipefd[LECTURE];
                 }
             }
         }
