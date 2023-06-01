@@ -7,6 +7,7 @@
 #include <fcntl.h>    /* opérations sur les fichiers */
 #include <stdbool.h>  /* booleans */
 #include <signal.h>   /* signaux */
+#include <errno.h>   /* gestion des erreurs */
 
 #include "readcmd.h"
 
@@ -54,8 +55,9 @@ void maj_jobs(job jobs[]) {
     int pid = waitpid(-1, &status, WNOHANG);
     while(pid > 0) {
         for (int i = 0; i < NB_JOBS_MAX; i++) {
-            if (jobs[i].state != TERMINE && WIFEXITED(status)) {
+            if (jobs[i].pid == pid && jobs[i].state != TERMINE && WIFEXITED(status)) {
                 jobs[i].state = TERMINE;
+                break;
             }
         }
         pid = waitpid(-1, &status, WNOHANG);
@@ -139,8 +141,8 @@ void suspend_fg_job(job jobs[]) {
 void destroy_fg_job(job jobs[]) {
     for (int i = 0; i < NB_JOBS_MAX; i++) {
         if (jobs[i].state == ACTIF) {
-            kill(jobs[i].pid, SIGKILL);
             jobs[i].state = TERMINE;
+            kill(jobs[i].pid, SIGINT);
             return;
         }
     }
@@ -153,18 +155,20 @@ void destroy_fg_job(job jobs[]) {
 //////////////   MAIN
 
 job jobs[NB_JOBS_MAX];
+int fd_in; int saved_stdin;
+int fd_out; int saved_stdout;
 
 void handler_sig(int sig) {
     switch (sig) {
-        case SIGSTOP:
         case SIGTSTP:
-            printf("\n");
             suspend_fg_job(jobs);
             suspend_flag = true;
             break;
         case SIGINT:
-            printf("\n");
-            destroy_fg_job(jobs);
+            if (!suspend_flag) {
+                printf("\n");
+                destroy_fg_job(jobs);
+            }
             break;
     }
 }
@@ -187,17 +191,36 @@ int main() {
     // Signal handler
     struct sigaction sa;
     sa.sa_handler = handler_sig;
-    sa.sa_flags = 0;
+    sa.sa_flags = 0;  // Renvoie moins de signaux SIGCHLD
     sigemptyset(&sa.sa_mask);
     sigaction(SIGTSTP, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
 
+
     struct cmdline *cmd;
     init_jobs(jobs);
 
+    sigset_t mask, oldmask;
+    sigemptyset(&mask);
+
+    // Bloquer SIGTSTP et SIGINT
+    sigaddset(&mask, SIGTSTP);
+    sigaddset(&mask, SIGINT);
+
     do {
         printf(">>> ");
+        
+        // Bloquer SIGTSTP et SIGINT avant readcmd
+        if (sigprocmask(SIG_BLOCK, &mask, &oldmask) < 0) {
+            perror("sigprocmask block");
+            exit(EXIT_FAILURE);
+        }
         cmd = readcmd();
+        // Débloquer SIGTSTP et SIGINT après readcmd
+        if (sigprocmask(SIG_SETMASK, &oldmask, NULL) < 0) {
+            perror("sigprocmask unblock");
+            exit(EXIT_FAILURE);
+        }
 
         if (cmd == NULL) {  // EOF
             printf("\n");
@@ -211,8 +234,38 @@ int main() {
             continue;
         }
 
+        // Redirections
+        if (cmd->in != NULL) {
+            fd_in = open(cmd->in, O_RDONLY);
+            if (fd_in == -1) {
+                if (errno == ENOENT) {
+                    fprintf(stderr, "minishell: %s: No such file or directory\n", cmd->in);
+                } else {
+                    perror("open");
+                    exit(EXIT_FAILURE);
+                }
+            }
+            saved_stdin = dup(STDIN_FILENO);
+            if (dup2(fd_in, STDIN_FILENO) == -1) {
+                perror("dup2");
+                exit(EXIT_FAILURE);
+            }
+        }
+        if (cmd->out != NULL) {
+            fd_out = open(cmd->out, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (fd_out == -1) {
+                perror("open");
+                exit(EXIT_FAILURE);
+            }
+            saved_stdout = dup(STDOUT_FILENO);
+            if (dup2(fd_out, STDOUT_FILENO) == -1) {
+                perror("dup2");
+                exit(EXIT_FAILURE);
+            }
+        }
+
         // built-in commands
-        else if (strcmp(cmd->seq[0][0], "exit") == 0 && cmd->seq[1] == NULL) {
+        if (strcmp(cmd->seq[0][0], "exit") == 0 && cmd->seq[1] == NULL) {
             if (cmd->seq[0][1] == NULL) {
                 exit(EXIT_SUCCESS);
             } else {
@@ -265,8 +318,8 @@ int main() {
             } else {
                 fprintf(stderr, "fg: too many arguments\n");
             }
-        } 
-        
+        }
+
         else {
             pid_t pid = fork();
             if (pid == -1) {
@@ -289,10 +342,25 @@ int main() {
                 }
                 if (WIFEXITED(status) && WEXITSTATUS(status) == 255) {
                     fprintf(stderr, "minishell: %s: command not found\n", cmd->seq[0][0]);
-                    destroy_job(jobs, id_or_error);
                 }
             }
         }
+
+        if (cmd->in != NULL) {
+            close(fd_in);
+            if (dup2(saved_stdin, STDIN_FILENO) == -1) {
+                perror("dup2");
+                exit(EXIT_FAILURE);
+            }
+        }
+        if (cmd->out != NULL) {
+            close(fd_out);
+            if (dup2(saved_stdout, STDOUT_FILENO) == -1) {
+                perror("dup2");
+                exit(EXIT_FAILURE);
+            }
+        }
+
         maj_jobs(jobs);
     } while (1);
 
