@@ -1,4 +1,4 @@
-#define _XOPEN_SOURCE 700   // Permet d'avoir le macro WIFCONTINUED (pour une raison qui m'échappe)
+#define _XOPEN_SOURCE 700   // Permet que le compilateur reconnaisse certaines fonctions
 #include <stdio.h>    /* entrées sorties */
 #include <unistd.h>   /* pimitives de base : fork, ...*/
 #include <stdlib.h>   /* exit */
@@ -10,10 +10,14 @@
 #include <errno.h>   /* gestion des erreurs */
 
 #include "readcmd.h"
+#include "utils.h"
 
-// Disclaimer : mon code peut paraitre redondans parfois, mais enlever une seule de ses variables ou fonctions et le programme ne fonctionne plus
+#define PROMPT "minishell> "
+#define CMD_SIZE 4096
 
 bool suspend_flag = false;
+
+
 
 // ////////////   JOBS
 
@@ -152,6 +156,8 @@ void destroy_fg_job(job jobs[]) {
 
 
 
+
+
 //////////////   MAIN
 
 job jobs[NB_JOBS_MAX];
@@ -171,20 +177,6 @@ void handler_sig(int sig) {
             }
             break;
     }
-}
-
-char* cmd_to_str(struct cmdline* cmd) {
-    int needed_size = 0;
-    for (int i = 0; cmd->seq[0][i]; i++) {
-        needed_size += strlen(cmd->seq[0][i]) + 1;
-    }
-    char* str = malloc(needed_size);
-    str[0] = '\0';
-    for (int i = 0; cmd->seq[0][i]; i++) {
-        strcat(str, cmd->seq[0][i]);
-        strcat(str, " ");
-    }
-    return str;
 }
 
 int main() {
@@ -208,7 +200,7 @@ int main() {
     sigaddset(&mask, SIGINT);
 
     do {
-        printf(">>> ");
+        printf(PROMPT);
         
         // Bloquer SIGTSTP et SIGINT avant readcmd
         if (sigprocmask(SIG_BLOCK, &mask, &oldmask) < 0) {
@@ -222,7 +214,7 @@ int main() {
             exit(EXIT_FAILURE);
         }
 
-        if (cmd == NULL) {  // EOF
+        if (cmd == NULL) {  // EOF (ne devrait pas être un signal car bloqué)
             printf("\n");
             break;
         }
@@ -231,6 +223,13 @@ int main() {
             continue;
         }
         if (cmd->seq[0] == NULL) {   // ligne vide
+            continue;
+        }
+
+        char* inexistant_command = malloc(CMD_SIZE);
+        checkCommand(cmd->seq, inexistant_command);
+        if (strcmp(inexistant_command, "") != 0) {
+            fprintf(stderr, "minishell: %s: command not found\n", inexistant_command);
             continue;
         }
 
@@ -321,27 +320,29 @@ int main() {
         }
 
         else {
-            pid_t pid = fork();
-            if (pid == -1) {
-                perror("fork");
-                exit(EXIT_FAILURE);
-            }
-            if (pid == 0) {
-                int exit_code = execvp(cmd->seq[0][0], cmd->seq[0]);
-                exit(exit_code);
-            } else {
-                int id_or_error = add_job(jobs, (job) {pid, ACTIF, cmd_to_str(cmd)});
-                if (id_or_error == -1) {
-                    continue;
+            for (int i = 0; cmd->seq[i] != NULL; i++) {
+                pid_t pid = fork();
+                if (pid == -1) {
+                    perror("fork");
+                    exit(EXIT_FAILURE);
                 }
-                int status;
-                if (cmd->backgrounded == NULL) {
-                    waitpid(pid, &status, 0);
-                    jobs[id_or_error].state = suspend_flag ? SUSPENDU : TERMINE;
-                    suspend_flag = false;
-                }
-                if (WIFEXITED(status) && WEXITSTATUS(status) == 255) {
-                    fprintf(stderr, "minishell: %s: command not found\n", cmd->seq[0][0]);
+                if (pid == 0) {
+                    int exit_code = execvp(cmd->seq[i][0], cmd->seq[i]);
+                    exit(exit_code);
+                } else {
+                    int id_or_error = add_job(jobs, (job) {pid, ACTIF, cmd_to_str(cmd)});
+                    if (id_or_error == -1) {
+                        continue;
+                    }
+                    int status;
+                    if (cmd->backgrounded == NULL) {
+                        waitpid(pid, &status, 0);
+                        jobs[id_or_error].state = suspend_flag ? SUSPENDU : TERMINE;
+                        suspend_flag = false;
+                    }
+                    if (WIFEXITED(status) && WEXITSTATUS(status) == 255) {
+                        fprintf(stderr, "minishell: %s: command not found\n", cmd->seq[i][0]);
+                    }
                 }
             }
         }
