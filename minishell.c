@@ -154,7 +154,75 @@ void destroy_fg_job(job jobs[]) {
     }
 }
 
+/* return :
+    0 : la commande est une built-in commande
+    1 : ça ne l'est pas
+*/
+int unpipable_cmd(job jobs[], char*** seq) {
+    // built-in commands
+    if (strcmp(seq[0][0], "exit") == 0 && seq[1] == NULL) {
+        if (seq[0][1] == NULL) {
+            exit(EXIT_SUCCESS);
+        } else {
+            fprintf(stderr, "exit: too many arguments\n");
+        }
+    }
+    else if (strcmp(seq[0][0], "cd") == 0 && seq[1] == NULL) {
+        if (seq[0][1] == NULL) {
+            chdir(getenv("HOME"));
+        } else if (seq[0][1] != NULL && seq[0][2] == NULL) {
+            int err = chdir(seq[0][1]);
+            if (err == -1) {
+                fprintf(stderr, "cd: The directory '%s' does not exist\n", seq[0][1]);
+            }
+        } else {
+            fprintf(stderr, "cd: too many arguments\n");
+        }
+    }
+    else if (strcmp(seq[0][0], "sj") == 0 && seq[1] == NULL) {
+        if (seq[0][1] == NULL) {
+            fprintf(stderr, "sj: missing argument\n");
+        } else if (seq[0][2] == NULL) {
+            stop_job(jobs, atoi(seq[0][1]));
+        } else {
+            fprintf(stderr, "sj: too many arguments\n");
+        }
+    }
+    else if (strcmp(seq[0][0], "bg") == 0 && seq[1] == NULL) {
+        if (seq[0][1] == NULL) {
+            fprintf(stderr, "bg: missing argument\n");
+        } else if (seq[0][2] == NULL) {
+            continue_job(jobs, atoi(seq[0][1]));
+        } else {
+            fprintf(stderr, "bg: too many arguments\n");
+        }
+    }
+    else if (strcmp(seq[0][0], "fg") == 0 && seq[1] == NULL) {
+        if (seq[0][1] == NULL) {
+            fprintf(stderr, "fg: missing argument\n");
+        } else if (seq[0][2] == NULL) {
+            foreground_job(jobs, atoi(seq[0][1]));
+        } else {
+            fprintf(stderr, "fg: too many arguments\n");
+        }
+    }
+    else {
+        return 1;
+    }
+    return 0;
+}
 
+int pipable_cmd(job jobs[], char** seqi) {
+    if (strcmp(seqi[0], "lj") == 0) {
+        if (seqi[1] == NULL) {
+            list_jobs(jobs);
+        } else {
+            fprintf(stderr, "lj: too many arguments\n");
+        }
+        return 0;
+    }
+    return 1;
+}
 
 
 
@@ -266,63 +334,8 @@ int main() {
             }
         }
 
-        // built-in commands
-        if (strcmp(cmd->seq[0][0], "exit") == 0 && cmd->seq[1] == NULL) {
-            if (cmd->seq[0][1] == NULL) {
-                exit(EXIT_SUCCESS);
-            } else {
-                fprintf(stderr, "exit: too many arguments\n");
-            }
-        }
-        else if (strcmp(cmd->seq[0][0], "cd") == 0 && cmd->seq[1] == NULL) {
-            if (cmd->seq[0][1] == NULL) {
-                chdir(getenv("HOME"));
-            } else if (cmd->seq[0][1] != NULL && cmd->seq[0][2] == NULL) {
-                int err = chdir(cmd->seq[0][1]);
-                if (err == -1) {
-                    fprintf(stderr, "cd: The directory '%s' does not exist\n", cmd->seq[0][1]);
-                }
-            } else {
-                fprintf(stderr, "cd: too many arguments\n");
-            }
-            continue;
-        }
-        else if (strcmp(cmd->seq[0][0], "lj") == 0 && cmd->seq[1] == NULL) {
-            if (cmd->seq[0][1] == NULL) {
-                list_jobs(jobs);
-            } else {
-                fprintf(stderr, "lj: too many arguments\n");
-            }
-        }
-        else if (strcmp(cmd->seq[0][0], "sj") == 0 && cmd->seq[1] == NULL) {
-            if (cmd->seq[0][1] == NULL) {
-                fprintf(stderr, "sj: missing argument\n");
-            } else if (cmd->seq[0][2] == NULL) {
-                stop_job(jobs, atoi(cmd->seq[0][1]));
-            } else {
-                fprintf(stderr, "sj: too many arguments\n");
-            }
-        }
-        else if (strcmp(cmd->seq[0][0], "bg") == 0 && cmd->seq[1] == NULL) {
-            if (cmd->seq[0][1] == NULL) {
-                fprintf(stderr, "bg: missing argument\n");
-            } else if (cmd->seq[0][2] == NULL) {
-                continue_job(jobs, atoi(cmd->seq[0][1]));
-            } else {
-                fprintf(stderr, "bg: too many arguments\n");
-            }
-        }
-        else if (strcmp(cmd->seq[0][0], "fg") == 0 && cmd->seq[1] == NULL) {
-            if (cmd->seq[0][1] == NULL) {
-                fprintf(stderr, "fg: missing argument\n");
-            } else if (cmd->seq[0][2] == NULL) {
-                foreground_job(jobs, atoi(cmd->seq[0][1]));
-            } else {
-                fprintf(stderr, "fg: too many arguments\n");
-            }
-        }
 
-        else {
+        if (unpipable_cmd(jobs, cmd->seq) != 0) {
             int in = 0;
             for (int i = 0; cmd->seq[i] != NULL; i++) {
                 int pipefd[2];
@@ -330,6 +343,7 @@ int main() {
                     perror("pipe");
                     exit(EXIT_FAILURE);
                 }
+
                 pid_t pid = fork();
                 if (pid == -1) {
                     perror("fork");
@@ -341,8 +355,10 @@ int main() {
                     if (cmd->seq[i+1] != NULL) {
                         dup2(pipefd[ECRITURE], STDOUT_FILENO);
                     }
-                    int exit_code = execvp(cmd->seq[i][0], cmd->seq[i]);
-                    exit(exit_code);
+                    if (pipable_cmd(jobs, cmd->seq[i])) {
+                        execvp(cmd->seq[i][0], cmd->seq[i]);
+                    }
+                    exit(0);
                 } else {
                     int id_or_error = add_job(jobs, (job) {pid, ACTIF, cmd_to_str(cmd)});
                     if (id_or_error == -1) {
