@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 
-#define NB_JOBS_MAX 20
+#define NB_JOBS_MAX 50
 
 extern bool suspend_flag;
 

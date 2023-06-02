@@ -13,7 +13,6 @@
 #include "utils.h"
 #include "jobs.h"
 
-#define PROMPT "minishell> "
 #define CMD_SIZE 4096
 #define LECTURE 0
 #define ECRITURE 1

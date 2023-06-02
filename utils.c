@@ -28,22 +28,26 @@ char* cmd_to_str(struct cmdline* cmd) {
 
 void checkCommand(char*** seq, char* invalid_cmd) {
     char *path = getenv("PATH");
-    char *path_copy = strdup(path); // strtok modifie la chaine
+    char *path_copy = strdup(path); // strtok modifie la chaîne
     char *dir = strtok(path_copy, ":"); // On récupère le premier chemin
 
     for(int i = 0; seq[i] != NULL; i++) {
         char* cmd_name = seq[i][0]; 
+
         if(strcmp(cmd_name, "cd") != 0 && strcmp(cmd_name, "fg") != 0 && strcmp(cmd_name, "bg") != 0 
             && strcmp(cmd_name, "sj") != 0 && strcmp(cmd_name, "lj") != 0 && strcmp(cmd_name, "exit") != 0) {
 
             bool command_found = false;
 
-            // Tout d'abord, vérifiez s'il s'agit d'une commande de chemin relatif "./file"
-            if(strncmp(cmd_name, "./", 2) == 0 && access(cmd_name, X_OK) == 0) {
+            // Premièrement, on vérifie si c'est une commande de chemin relatif "./file" ou "../file" ou qui contient "/../"
+            if((strncmp(cmd_name, "./", 2) == 0 || strncmp(cmd_name, "../", 3) == 0 
+                || strstr(cmd_name, "/../") != NULL || strchr(cmd_name, '/') != NULL) 
+                && access(cmd_name, X_OK) == 0) {
+                
                 command_found = true;
             }
             else {
-                // Si ce n'est pas une commande "./file", nous parcourons les chemins dans PATH
+                // Si ce n'est pas une commande "./file" ou "../file" ou qui contient "/../", on parcourt les chemins dans PATH
                 while (dir) {
                     char *full_path = malloc(strlen(dir) + strlen(cmd_name) + 2); // +2 pour '/' et '\0'
                     sprintf(full_path, "%s/%s", dir, cmd_name);
@@ -67,6 +71,7 @@ void checkCommand(char*** seq, char* invalid_cmd) {
     }
     strcpy(invalid_cmd, "");
 }
+
 
 
 void print_prompt() {
