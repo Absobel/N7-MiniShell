@@ -1,39 +1,89 @@
-Introduction
-------------
-Le code fourni a pour but de vous décharger du travail d'analyse d'une ligne de commande,
-avant son interprétation par le shell. Il propose une fonction `readcmd()` qui fournit
-le résultat de cette analyse.
+# Rapport du projet MiniShell
 
-Le source est fourni non pas à titre d'exemple (il n'est pas d'une clarté éblouissante),
-mais à titre de documentation (et de spécification :)) ;  il n'est ni
- nécessaire, ni conseillé de le modifier pour réaliser le travail demandé : l'analyse
- réalisée est suffisante pour la syntaxe des commandes que votre shell doit interpréter.
- 
- Ce code est a priori tout à fait fiable, mais n'hésitez cependant pas à nous signaler 
- ce qui vous apparaîtrait comme des anomalies, ou des lacunes dans la documentation.
+## Sommaire
 
-La structure `cmdline`
-----------------------
-L'appel à readcmd() retourne une structure cmdline, qui contient le résultat de l'analyse
-de la ligne de commande pour le shell.
-Cette structure contient notamment :
+1. [Architecture de l'application](#architecture-de-lapplication)
+2. [Choix de conception et spécificités](#choix-de-conception-et-specificités)
+3. [Problèmes rencontrés](#problemes-rencontres)
+4. [Tests](#tests)
 
-- l'indication du fait que la commande doit être lancée en tâche de fond ou non
-- les redirections éventuelles.  
-  Notez que seules les redirections de la forme `> nom-fichier` ou `< nom-fichier` sont traitées.
-- la décomposition de la ligne de commande en commandes élémentaires, et la décomposition
- de chaque commande en mots. Le champ `seq` référence le résultat de cette décomposition,
- qui est vu comme un tableau à deux dimensions [commandes élémentaires, mots de la commande]
- 
- **Pour plus de détails, voir le fichier d'en-tête `readcmd.h`.**
- 
-**Exemples :**
+## Architecture de l'application
 
-- "ls -l" : seq[0][0] = "ls", seq[0][1] = "-l", seq[0][2] = NULL, seq[1] = NULL, backgrounded = NULL, in = NULL, out = NULL
-- "ls -l > toto" : seq[0][0] = "ls", seq[0][1] = "-l", seq[0][2] = NULL,
- seq[1] = NULL, backgrounded = NULL, in = NULL, out => "toto"
-- "ls | grep toto | wc -l" : seq[0][0] = "ls", seq[0][1] = NULL, 
-seq[1][0] = "grep", seq[1][1] = "toto",  seq[1][2] = NULL, 
-seq[2][0] = "wc", seq[0][1] = "-l", seq[0][2] = NULL,
-seq[3] = NULL, backgrounded = NULL, in = NULL, out = NULL
-- "sleep 100 &" : seq[0][0] = "sleep", seq[0][1] = "20",  backgrounded != NULL, in = NULL, out = NULL
+<Expliquer ici l'organisation générale de votre code, les principaux modules et comment ils interagissent>
+
+## Choix de conception et spécificités
+
+<Discuter ici des décisions de conception que vous avez prises et pourquoi. Parlez également des aspects spécifiques ou uniques de votre implémentation>
+
+## Problèmes rencontrés
+
+<Expliquer ici les problèmes que vous avez rencontrés lors du développement du projet et comment vous les avez résolus>
+
+## Tests
+
+### Tester une commande simple
+
+```
+ls
+```
+
+### Tester une commande avec des arguments
+
+```
+ls -l
+```
+
+### Tester une commande qui change l'état du shell
+
+```
+cd /
+```
+
+### Tester le comportement de la commande `exit`
+
+```
+exit
+```
+
+### Tester une commande en tâche de fond
+
+```
+sleep 10 &
+```
+
+### Tester les redirections en écrivant le contenu d'un répertoire dans un fichier
+
+```
+ls > file.txt
+```
+
+### Tester les redirections en lisant le contenu d'un fichier
+
+```
+cat < file.txt
+```
+
+### Tester les tubes simples
+
+```
+ls | wc -l
+```
+
+### Tester les pipelines
+
+```
+cat file.txt | grep "test" | wc -l
+```
+
+### Tester les commandes internes `lj``sj``bg``fg`
+
+```
+lj
+sleep 30 &
+lj
+sj [id]
+lj
+bg [id]
+lj
+fg [id]
+```

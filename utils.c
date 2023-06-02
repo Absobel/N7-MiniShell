@@ -6,6 +6,12 @@
 #include <stdbool.h>  /* booleans */
 #include <stdio.h>  /* sprintf */
 
+// Define some color and style codes
+#define COLOR_LIGHT_BLUE "\x1b[1;94m"
+#define COLOR_RED "\x1b[1;31m"
+#define COLOR_DARK_GRAY "\x1b[1;90m"
+#define RESET "\x1b[0m"
+
 char* cmd_to_str(struct cmdline* cmd) {
     int needed_size = 0;
     for (int i = 0; cmd->seq[0][i]; i++) {
@@ -32,19 +38,25 @@ void checkCommand(char*** seq, char* invalid_cmd) {
 
             bool command_found = false;
 
-            // On parcourt les chemins de PATH
-            while (dir) {
-                char *full_path = malloc(strlen(dir) + strlen(cmd_name) + 2); // +2 pour '/' et '\0'
-                sprintf(full_path, "%s/%s", dir, cmd_name);
+            // Tout d'abord, vérifiez s'il s'agit d'une commande de chemin relatif "./file"
+            if(strncmp(cmd_name, "./", 2) == 0 && access(cmd_name, X_OK) == 0) {
+                command_found = true;
+            }
+            else {
+                // Si ce n'est pas une commande "./file", nous parcourons les chemins dans PATH
+                while (dir) {
+                    char *full_path = malloc(strlen(dir) + strlen(cmd_name) + 2); // +2 pour '/' et '\0'
+                    sprintf(full_path, "%s/%s", dir, cmd_name);
 
-                if(access(full_path, X_OK) == 0) {
-                    command_found = true;
+                    if(access(full_path, X_OK) == 0) {
+                        command_found = true;
+                        free(full_path);
+                        break;
+                    }
+
                     free(full_path);
-                    break;
+                    dir = strtok(NULL, ":"); // On récupère le chemin suivant
                 }
-
-                free(full_path);
-                dir = strtok(NULL, ":"); // On récupère le chemin suivant
             }
 
             if (!command_found) {
@@ -54,4 +66,18 @@ void checkCommand(char*** seq, char* invalid_cmd) {
         }
     }
     strcpy(invalid_cmd, "");
+}
+
+
+void print_prompt() {
+    char cwd[1024];
+    getcwd(cwd, sizeof(cwd));  // get current directory
+    printf(COLOR_DARK_GRAY "┌─[" RESET COLOR_LIGHT_BLUE "%s" COLOR_DARK_GRAY "]\n" RESET, cwd);
+    printf(COLOR_DARK_GRAY "└─[" RESET COLOR_RED "$" RESET COLOR_DARK_GRAY "]› " RESET);
+}
+
+void free_memory(char *inexistant_command) {
+    if (inexistant_command != NULL) {
+        free(inexistant_command);
+    }
 }

@@ -59,7 +59,7 @@ int main() {
     sigaddset(&mask, SIGINT);
 
     do {
-        printf(PROMPT);
+        print_prompt();
         
         // Bloquer SIGTSTP et SIGINT avant readcmd
         if (sigprocmask(SIG_BLOCK, &mask, &oldmask) < 0) {
@@ -90,6 +90,7 @@ int main() {
         checkCommand(cmd->seq, inexistant_command);
         if (strcmp(inexistant_command, "") != 0) {
             fprintf(stderr, "minishell: %s: command not found\n", inexistant_command);
+            free_memory(inexistant_command);
             continue;
         }
 
@@ -183,6 +184,7 @@ int main() {
             }
         }
 
+        free_memory(inexistant_command);
         maj_jobs(jobs);
     } while (1);
 
