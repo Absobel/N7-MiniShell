@@ -12,19 +12,24 @@
 #define COLOR_DARK_GRAY "\x1b[1;90m"
 #define RESET "\x1b[0m"
 
-char* cmd_to_str(struct cmdline* cmd) {
+
+char* cmd_to_str(char** seqi) {
     int needed_size = 0;
-    for (int i = 0; cmd->seq[0][i]; i++) {
-        needed_size += strlen(cmd->seq[0][i]) + 1;
+    for (int i = 0; seqi[i]; i++) {
+        needed_size += strlen(seqi[i]) + 1; // +1 pour l'espace
     }
     char* str = malloc(needed_size);
-    str[0] = '\0';
-    for (int i = 0; cmd->seq[0][i]; i++) {
-        strcat(str, cmd->seq[0][i]);
-        strcat(str, " ");
+    if (!str) {
+        return NULL;
+    }
+    str[0] = '\0'; // Initialise la chaîne à la chaîne vide
+    for (int i = 0; seqi[i]; i++) {
+        strcat(str, seqi[i]);
+        strcat(str, " "); // Ajouter un espace entre chaque arguments
     }
     return str;
 }
+
 
 void checkCommand(char*** seq, char* invalid_cmd) {
     char *path = getenv("PATH");

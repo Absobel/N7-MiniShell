@@ -149,7 +149,7 @@ int main() {
                     }
                     exit(0);
                 } else {
-                    int id_or_error = add_job(jobs, (job) {pid, ACTIF, cmd_to_str(cmd)});
+                    int id_or_error = add_job(jobs, (job) {pid, ACTIF, cmd_to_str(cmd->seq[i])});
                     if (id_or_error == -1) {
                         continue;
                     }

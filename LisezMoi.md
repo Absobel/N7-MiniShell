@@ -12,7 +12,18 @@
   - [Problèmes rencontrés](#problèmes-rencontrés)
     - [Signaux durant readcmd](#signaux-durant-readcmd)
     - [Crashs](#crashs)
+    - [Nommage des jobs](#nommage-des-jobs)
   - [Tests](#tests)
+    - [Tester une commande simple](#tester-une-commande-simple)
+    - [Tester une commande avec des arguments](#tester-une-commande-avec-des-arguments)
+    - [Tester une commande qui change l'état du shell](#tester-une-commande-qui-change-létat-du-shell)
+    - [Tester le comportement de la commande `exit`](#tester-le-comportement-de-la-commande-exit)
+    - [Tester une commande en tâche de fond](#tester-une-commande-en-tâche-de-fond)
+    - [Tester les redirections en écrivant le contenu d'un répertoire dans un fichier](#tester-les-redirections-en-écrivant-le-contenu-dun-répertoire-dans-un-fichier)
+    - [Tester les redirections en lisant le contenu d'un fichier](#tester-les-redirections-en-lisant-le-contenu-dun-fichier)
+    - [Tester les tubes simples](#tester-les-tubes-simples)
+    - [Tester les pipelines](#tester-les-pipelines)
+    - [Tester les commandes internes `lj``sj``bg``fg`](#tester-les-commandes-internes-ljsjbgfg)
 
 
 <br />
@@ -62,6 +73,9 @@ J'ai eu des problèmes avec les signaux durant la lecture de la commande. En eff
 
 Lorsque je lance l'éditeur de texte helix, puis appuie sur Ctrl+Z, le programme plante. Cependant, lorsque je réalise la même action sur vi, le programme ne plante pas. J'ai décidé de ne pas gérer ce cas car c'est un cas très spécifique avec un certain programme. De même pour la commande `sl` (qui affiche un train qui traverse l'écran pour ceux qui écrivent trop vite et tapent `sl` au lieu de `ls`) qui plante après un Ctrl+Z et je ne sais pas pourquoi.
 
+### Nommage des jobs
+
+J'avais décidé au départ de seulement nommer le job par la version concaténée de `cmd->seq[0]`. Hors lorsque j'ai ajouté les pipes, cela à fait que chaque job avait le nom de la première commande. Un petit changement (que j'ai fait après la date du rendu) a permis de corriger cela.
 
 <br />
 ## Tests
